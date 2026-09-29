@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skills Manager"
+  short_description: "Maintain a shared skill library and agent symlinks"
+  default_prompt: "Use $skills-manager to inspect my shared skill library and synchronize the requested agent links while preserving local work."
