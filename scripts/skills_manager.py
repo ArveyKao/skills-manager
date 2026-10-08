@@ -13,6 +13,10 @@ def absolute(value):
     return Path(os.path.abspath(Path(value).expanduser()))
 
 
+def default_library():
+    return Path.home() / "skills-manager"
+
+
 def default_roots():
     home = Path.home()
     codex = Path(os.environ.get("CODEX_HOME") or home / ".codex").expanduser()
@@ -152,7 +156,7 @@ def main(argv=None):
     listing = commands.add_parser("inventory", help="Read directory metadata and report installation state")
     linking = commands.add_parser("sync", help="Preview missing links; --apply creates them")
     for command in (listing, linking):
-        command.add_argument("--library", default=str(Path.home() / "arveyskills"))
+        command.add_argument("--library", default=str(default_library()), help="Canonical source library (default: ~/skills-manager)")
         command.add_argument("--agent-root", action="append", dest="roots")
     linking.add_argument("names", nargs="*")
     linking.add_argument("--all", action="store_true", dest="all_skills")

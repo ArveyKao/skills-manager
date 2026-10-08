@@ -1,6 +1,6 @@
 ---
 name: skills-manager
-description: Manage a local skill library and its agent-directory symlinks. Use to inventory skills, install a GitHub skill, synchronize discovery links, diagnose duplicates or broken links, update selected skills, or publish a skill repository. Preserve local edits and vendor-managed installations.
+description: Manage the central personal skill library in ~/skills-manager. Use to discover and consolidate personal skills across the machine, install or create skills, update canonical sources, synchronize agent-directory symlinks, diagnose duplicates or broken links, or publish selected skills. Preserve local edits and vendor-managed installations.
 ---
 
 # Skills Manager
@@ -8,15 +8,25 @@ description: Manage a local skill library and its agent-directory symlinks. Use 
 Maintain one canonical copy of each personal skill, with per-skill symlinks in
 the agent directories the user uses. Work on the requested skills only.
 
-## Existing architecture
+## Local setup
 
-The owner's current layout is:
+Read [references/local-setup.md](references/local-setup.md) before discovery,
+installation, synchronization or updates. The default canonical source library
+is `~/skills-manager`; honor a user-selected library path and agent roots. Save new, downloaded and created personal
+skills there, and update their canonical sources there. Agent skill directories
+contain per-skill discovery links. `CODEX_HOME` selects the Codex discovery root,
+not the source library. Preserve this local setup when updating the manager.
+
+## Central library and discovery directories
+
+The personal skill layout is:
 
 ```text
-~/arveyskills/<skill-name>/              canonical source, containing SKILL.md
-~/.agents/skills/<skill-name>  ─┐
-~/.codex/skills/<skill-name>   ─┼──────> canonical source
-~/.claude/skills/<skill-name>  ─┘
+~/skills-manager/<skill-name>/          canonical source containing SKILL.md
+~/.codex/skills/<skill-name>    ─┐
+~/.agents/skills/<skill-name>   ─┤
+~/.claude/skills/<skill-name>   ─┼──> canonical source
+~/.cursor/skills/<skill-name>   ─┘
 ```
 
 These are this library's conventions, not universal defaults for every agent.
@@ -25,10 +35,15 @@ Preserve `~/.codex/skills/.system`, plugin caches, Cursor's bundled skills, and
 other vendor-managed directories. Do not mount the whole library over an agent's
 existing `skills` directory.
 
-Some entries are standalone Git repositories; others are copies inside the
-library's parent repository. A supporting repository without a root `SKILL.md`
-(for example, `huashu-chrome` in the current layout) must not be linked as a skill.
+Some entries are standalone Git repositories; others are copied skills.
+A supporting repository without a root `SKILL.md` must not be linked as a skill.
 A multi-skill repository needs its selected installable subdirectory.
+
+For machine-wide discovery or consolidation, read
+[references/consolidation.md](references/consolidation.md). Search accessible
+real directory roots by filename first, classify personal sources separately
+from managed resources, back up selected originals and keep old paths working
+through per-skill links. Keep different same-name versions separate.
 
 ## Inspect and synchronize
 

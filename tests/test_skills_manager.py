@@ -161,8 +161,57 @@ class SkillsManagerTests(unittest.TestCase):
         self.assertFalse(roots[2].exists())
 
     def test_codex_home_is_respected_without_reading_other_environment(self):
-        with patch.dict(os.environ, {"CODEX_HOME": str(self.base / "custom-codex")}):
-            self.assertEqual(manager.default_roots()[1], self.base / "custom-codex/skills")
+        with patch.dict(os.environ, {"CODEX_HOME": str(self.base / "custom-codex")}), patch.object(Path, "home", return_value=self.base):
+            self.assertEqual(manager.default_library(), self.base / "skills-manager")
+            self.assertEqual(manager.default_roots(), [self.base / ".agents/skills", self.base / "custom-codex/skills", self.base / ".claude/skills"])
+
+    def test_cli_default_library_is_central_with_or_without_codex_home(self):
+        central = self.base / "skills-manager"
+        source = central / "central-skill"
+        source.mkdir(parents=True)
+        (source / "SKILL.md").write_text("---\nname: central-skill\ndescription: A fixture\n---\n")
+        for configured in (False, True):
+            with self.subTest(configured=configured):
+                codex = self.base / ("custom-codex" if configured else ".codex")
+                output = io.StringIO()
+                with patch.dict(os.environ, {"CODEX_HOME": str(codex) if configured else ""}), patch.object(Path, "home", return_value=self.base), contextlib.redirect_stdout(output):
+                    code = manager.main(["inventory"])
+                report = json.loads(output.getvalue())
+                self.assertEqual(code, 0)
+                self.assertEqual(report["library"], str(central))
+                self.assertEqual([item["name"] for item in report["entries"]], ["central-skill"])
+                self.assertEqual([item["root"] for item in report["agent_roots"]], [str(self.base / ".agents/skills"), str(codex / "skills"), str(self.base / ".claude/skills")])
+                self.assertTrue(all(mount["status"] == "missing" for mount in report["entries"][0]["mounts"]))
+                self.assertFalse((codex / "skills").exists())
+
+    def test_cli_default_sync_uses_central_source_and_codex_discovery_root(self):
+        central = self.base / "skills-manager"
+        source = central / "central-skill"
+        source.mkdir(parents=True)
+        (source / "SKILL.md").write_text("---\nname: central-skill\ndescription: A fixture\n---\n")
+        codex = self.base / "custom-codex"
+        output = io.StringIO()
+        with patch.dict(os.environ, {"CODEX_HOME": str(codex)}), patch.object(Path, "home", return_value=self.base), contextlib.redirect_stdout(output):
+            code = manager.main(["sync", "central-skill", "--apply"])
+        self.assertEqual(code, 0)
+        report = json.loads(output.getvalue())
+        self.assertEqual([item["status"] for item in report["links"]], ["created"] * 3)
+        for root in (self.base / ".agents/skills", codex / "skills", self.base / ".claude/skills"):
+            self.assertTrue((root / source.name).is_symlink())
+            self.assertEqual((root / source.name).resolve(), source)
+        self.assertTrue(source.is_dir())
+        self.assertFalse(source.is_symlink())
+        self.assertFalse((self.base / ".codex/skills").exists())
+
+    def test_cli_explicit_library_overrides_central_default(self):
+        output = io.StringIO()
+        with patch.object(Path, "home", return_value=self.base), contextlib.redirect_stdout(output):
+            code = manager.main(["inventory", "--library", str(self.library), "--agent-root", str(self.root)])
+        self.assertEqual(code, 0)
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["library"], str(self.library))
+        self.assertEqual([item["name"] for item in report["entries"]], ["example-skill"])
+        self.assertFalse((self.base / "skills-manager").exists())
 
     def test_cli_custom_roots_override_defaults(self):
         output = io.StringIO()

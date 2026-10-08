@@ -6,8 +6,10 @@ Confirm the repository/ref and the skill directory. Check the existing library
 entry and all intended mounts before copying or cloning. If an entry already
 exists, inspect its ownership and state; do not overwrite it to repeat an install.
 
-For a repository-root skill, a standalone clone under `~/arveyskills/<name>`
-keeps its provenance. For a multi-skill repository, retain the checkout separately
+For a repository-root skill, clone under `~/skills-manager/<name>` to keep its
+provenance. Create and download personal skills into that library; set the
+installer's destination explicitly, then link selected discovery paths. For a
+multi-skill repository, retain the checkout separately
 and link only the selected skill subdirectory, or copy that complete subdirectory
 into the library and record its source/ref. Do not link the repository root unless
 it contains the intended `SKILL.md`. Preserve scripts, references, assets and
@@ -34,7 +36,7 @@ git -C /path/to/skill status --short
 ```
 
 A successful Git command does not prove the skill owns a repository: it may find
-`~/arveyskills/.git` in an ancestor. Do not pull the parent library to update one
+the library's `.git` in an ancestor. Do not pull the parent library to update one
 copied skill. Do not display `.git/config` or unsanitized remote URLs.
 
 For a standalone checkout, confirm the intended upstream using a known source
