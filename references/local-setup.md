@@ -1,55 +1,79 @@
-# Central skill library
+# Central skill library for the current user
 
-The default source library is `~/skills-manager`. Honor a user-selected library
-path and preserve that choice across installations and updates. Created and
-downloaded personal skills belong in `<library>/<skill-name>`; update their
-canonical sources there and deploy per-skill symlinks into selected agent roots.
-Set any installer's destination explicitly to the source library.
+This installation uses `~/skills-manager` as the canonical source library. This
+supersedes the earlier setup that kept sources in separate agent folders. Store
+created and downloaded personal skills there, apply updates to their canonical
+sources, and deploy per-skill links into selected agent roots. Set any
+installer's destination explicitly to the central library.
 
-| Purpose | Default directory |
+| Purpose | Directory |
 | --- | --- |
 | Canonical sources | `~/skills-manager` |
-| Manager source | `~/skills-manager/skills-manager` |
-| Codex discovery | `$CODEX_HOME/skills`, or `~/.codex/skills` |
+| Codex discovery | `~/.codex/skills` |
 | Shared agent discovery | `~/.agents/skills` |
 | Claude discovery | `~/.claude/skills` |
 | Cursor discovery | `~/.cursor/skills` |
 
-`CODEX_HOME` selects only the Codex discovery root. The helper's source library
-default remains `~/skills-manager`; use `--library` to override it. Include
-explicit `--agent-root` options for Cursor or another agent outside the helper's
-default shared/Codex/Claude roots.
+Honor a different `CODEX_HOME` for the Codex discovery root. The manager's source
+is `~/skills-manager/skills-manager`; its old Codex path remains a link.
+
+## Inventory and synchronization
+
+The helper defaults to `~/skills-manager`, independently of `CODEX_HOME`.
+Use `--library` for a selected variant or another user-selected library.
+Missing mounts are informational; centralization does not deploy every skill
+into every agent. Include explicit `--agent-root` options for Cursor or another
+agent outside the helper's default shared/Codex/Claude roots.
 
 ```bash
 python3 ~/skills-manager/skills-manager/scripts/skills_manager.py inventory
-python3 ~/skills-manager/skills-manager/scripts/skills_manager.py sync example-skill \
-  --agent-root ~/.codex/skills --agent-root ~/.cursor/skills
 ```
 
-Missing mounts are informational; centralization does not deploy every skill
-into every agent. Preview synchronization first and apply when the user's
-request authorizes the selected links.
+Differing same-name sources are preserved in
+`~/skills-manager/.variants/<context>/<skill-name>`. Inventory a context with
+`--library ~/skills-manager/.variants/<context>`. Old discovery links point to
+their own versions; update the version used by the requested agent.
 
-Differing same-name sources may be preserved under
-`<library>/.variants/<context>/<skill-name>`. Inventory a context with
-`--library <library>/.variants/<context>`. Existing discovery links must retain
-their original names and point to their own versions. Update the version used
-by the requested agent, rather than replacing another variant by name alone.
+Content validation is separate from link synchronization:
 
-For explicitly authorized project-source moves, `.projects/<project>` can
-preserve relative source structure and central aliases can expose skill names.
-Prepare the required shared-dependency links before moving sources. Run existing
-workflows at their original compatibility paths when access hooks match those
-paths literally. See [consolidation.md](consolidation.md) for discovery, backup,
-migration and verification.
+```bash
+python3 ~/skills-manager/skills-manager/scripts/skills_manager.py check --all --format text
+```
 
-Keep timestamped backups and host-specific reports in hidden `.backups` and
-`.reports` directories. Preserve managed `.system` directories, plugin caches,
-application resources, lock files, local edits and project-specific instructions.
-Do not publish a user's reports, backups or credentials with the manager.
+`check` reads skill content offline; it does not create or change discovery links.
 
-To make this layout persistent for an agent, add a narrowly scoped personal-skill
-policy to its supported instruction file when the setup request authorizes it:
-new personal sources and updates go into the canonical library, and agent skill
-folders hold per-skill links. Preserve unrelated instructions and the user's
-chosen project-source policy.
+For synchronization, use the central library or selected variant context as
+`--library` and only the requested destination directories as `--agent-root`.
+Preview first and apply when the request authorizes the resulting links. Managing
+existing skills does not itself request deployment into additional agents.
+For example, a request to make `baoyu-design` available in the shared folder uses:
+
+```bash
+python3 ~/skills-manager/skills-manager/scripts/skills_manager.py sync baoyu-design \
+  --agent-root ~/.agents/skills
+```
+
+Preserve `~/.codex/skills/.system`, plugin caches,
+`~/.agents/.skill-lock.json`, nested skill resources and existing local
+edits. Follow the lifecycle reference for selected installs and updates; choose
+the canonical source and selected discovery links. Follow `consolidation.md`
+for broad scans and migrations. Reports and backups belong under the library's
+hidden `.reports` and `.backups` directories. Preserve the selected policy for
+project authoring sources recorded in the migration report.
+
+Keep reports, backups and credentials out of published skill repositories. When
+an agent setup request authorizes updating its instruction file, record the
+canonical source and per-skill discovery link policy there. Preserve unrelated
+instructions and the selected project-source policy.
+
+## Installation provenance
+
+- Source: https://github.com/ArveyKao/skills-manager
+- Reviewed and integrated upstream revision: `510faa27a9ab0b38936526f0228c00fdc1a0dca4` (2026-11-11)
+- Original installation: `b1a2ffb773cf12883cbb2a30225a694afdc5c4c3` (2026-10-08)
+- Local adaptation: central-library defaults, local workflow documentation,
+  read-only content validation, and CLI regression tests.
+- The license and helper's inventory/synchronization behavior are preserved.
+
+When updating, preserve this local adaptation and compare safe skill files with
+the latest integrated revision; the installed copy is not a Git checkout.

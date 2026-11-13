@@ -42,10 +42,9 @@ python3 ~/skills-manager/skills-manager/scripts/consolidate_skills.py manifest.j
 python3 ~/skills-manager/skills-manager/scripts/consolidate_skills.py manifest.json --apply
 ```
 
-When the user explicitly selects moving project skill folders with
-original-path symlinks, place those sources under
-`.projects/<project>/<original-relative-path>` and expose their skill names
-through central aliases. Before applying the move, prepare needed ancestor
+The user selected moving project skill folders with original-path symlinks.
+Place those sources under `.projects/<project>/<original-relative-path>` and
+expose their skill names through central aliases. Before applying the move, prepare needed ancestor
 relationships with absolute links to unmoved shared helpers and configuration
 files, using metadata only for credential-bearing files. Keep access-gate hooks
 at their original paths and retain original command paths where their matchers
