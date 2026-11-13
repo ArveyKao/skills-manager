@@ -1,4 +1,4 @@
 interface:
   display_name: "Skills Manager"
-  short_description: "Validate and maintain a shared skill library and agent symlinks"
-  default_prompt: "Use $skills-manager to inspect my shared skill library, validate skill content, and synchronize the requested agent links while preserving local work."
+  short_description: "Validate, catalog, and maintain a shared skill library and agent symlinks"
+  default_prompt: "Use $skills-manager to inspect my shared skill library, validate skill content, build the local catalog, and synchronize the requested agent links while preserving local work."
