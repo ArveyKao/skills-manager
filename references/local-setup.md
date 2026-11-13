@@ -42,6 +42,16 @@ python3 ~/skills-manager/skills-manager/scripts/skills_manager.py check --all --
 
 `check` reads skill content offline; it does not create or change discovery links.
 
+The local search index is separate from the library:
+
+```bash
+python3 ~/skills-manager/skills-manager/scripts/skill_catalog.py catalog
+python3 ~/skills-manager/skills-manager/scripts/skill_catalog.py search "..." --format text
+```
+
+It stores `~/.arvey-config/skills-manager/catalog.json` (0600, local-only). Rebuild
+it after adding or renaming a skill; never publish it as a document.
+
 For synchronization, use the central library or selected variant context as
 `--library` and only the requested destination directories as `--agent-root`.
 Preview first and apply when the request authorizes the resulting links. Managing

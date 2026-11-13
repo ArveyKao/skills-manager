@@ -112,6 +112,27 @@ candidate, add `--publish`: host-specific paths and relative links that resolve
 outside the skill become errors. A clean check is not proof that the workflow
 works: still run the representative task and the skill's tests.
 
+## Find the right skill
+
+The session catalog exposes names and short descriptions only. When several
+skills could match, search the local catalog before loading a body:
+
+```bash
+python3 scripts/skill_catalog.py catalog
+python3 scripts/skill_catalog.py catalog --check
+python3 scripts/skill_catalog.py search "deploy a frontend to shanghai" --format text
+```
+
+`catalog` writes local-only metadata to
+`~/.arvey-config/skills-manager/catalog.json` (mode 0600) and prints a summary.
+`search` returns candidate names, a short reason and a confidence, but never a
+skill body. Load only the chosen skill with the host's skill tool. Rebuild the
+catalog after adding, renaming or changing a skill description.
+
+The catalog is an index, not a second source of truth. Keep it local; never move
+it to a document service. It stores summaries and hashes, not secrets or full
+bodies.
+
 ## Install, update, repair, or disable
 
 Read [references/lifecycle.md](references/lifecycle.md) for the operation needed.

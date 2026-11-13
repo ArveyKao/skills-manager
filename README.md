@@ -77,6 +77,26 @@ host-specific paths and links outside the skill as errors; `--verbose` includes
 info findings in text output. A clean check is structural, not proof that the
 skill's workflow succeeds.
 
+## Search skills by intent
+
+The host catalog has only names and short descriptions. Build a local index and
+search it when the choice is ambiguous:
+
+```bash
+python3 scripts/skill_catalog.py catalog
+python3 scripts/skill_catalog.py catalog --check
+python3 scripts/skill_catalog.py search "deploy a frontend" --format text
+```
+
+`catalog` writes `~/.arvey-config/skills-manager/catalog.json` (0600, local-only)
+and reports counts. `--check` exits 1 when the index is stale. `search` ranks
+local summaries and returns names with a short reason; it does not load a skill
+body or change discovery links.
+
+`whenToUse` and `aliases` frontmatter improve retrieval accuracy. The catalog is
+an index, not a second source of truth: rebuild it after skill changes and load
+the selected skill through the host's skill tool.
+
 ## Consolidate existing sources
 
 Ask your agent to discover personal skills across accessible machine locations

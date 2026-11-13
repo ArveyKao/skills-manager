@@ -86,6 +86,29 @@ status change. Record what is still pending and the next step. Resolve
 contradictions at their source and derive any summary from the current record
 instead of maintaining a second copy of the project state.
 
+## Retrieval metadata
+
+A skill's `description` is the always-visible routing summary; `whenToUse` and
+`aliases` improve retrieval without enlarging the session catalog:
+
+```yaml
+---
+name: deploy-gms-frontend
+description: Deploy a static frontend through deploy-gms and sync its Ingress.
+whenToUse: Use when a GMS static site needs a new environment or domain.
+aliases: gms-web, static-site, frontend-deploy
+---
+```
+
+- Keep `description` stable, specific and trigger-rich; it is cached context.
+- Put task-shaped phrases in `whenToUse`; the local catalog search exposes it.
+- Put user vocabulary, acronyms and Chinese/English variants in `aliases`
+  (comma-separated or a single-line list).
+- Do not put secrets or project-specific values in any of these fields.
+
+Run `skill_catalog.py catalog` after changing them, then `catalog --check` before
+publishing.
+
 ## Validate before publishing
 
 Run the manager's read-only content check before publishing or after a
