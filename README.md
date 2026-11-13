@@ -21,7 +21,7 @@ python3 scripts/skills_manager.py sync skills-manager --apply
 ```
 
 Existing conflicting paths are preserved. The helper requires Python 3.9+ and
-no additional packages. The source library defaults to `~/skills-manager`;
+no additional packages. This local copy defaults to `~/skills-manager`;
 `--library` selects another source library. `CODEX_HOME`, when set, selects only
 the Codex discovery home. New skills and updates belong in the central library.
 These directory defaults reflect this library's layout; agent discovery still
@@ -37,21 +37,45 @@ Or run the helper directly:
 
 ```bash
 python3 scripts/skills_manager.py inventory
-python3 scripts/skills_manager.py sync example-skill
+python3 scripts/skills_manager.py check --all --format text
+python3 scripts/skills_manager.py sync huashu-design baoyu-design
 python3 scripts/skills_manager.py sync --all --apply
 python3 scripts/skills_manager.py inventory --library /path/to/library \
   --agent-root /path/to/agent/skills
 ```
 
 - `inventory` reads filesystem metadata and prints JSON; it does not read skill
-  contents, credentials, Git configuration, or plugin manifests.
+  contents, credentials, Git configuration, or plugin manifests. Its JSON includes
+  `ok`/`counts`; `--strict` exits nonzero when conflicts are present.
 - `sync` previews by default. `--apply` creates missing symlinks, with no
   overwrites or deletion. Explicit names or `--all` are required.
 - `--all` selects only immediate, non-hidden library entries with a `SKILL.md`.
-  Supporting repositories without that file are skipped.
+  Supporting repositories without that file are skipped. Alias entries are
+  included; use explicit names to limit scope when that matters.
+- `check` is read-only. It validates selected skill content and prints JSON or
+  text; it does not read or change discovery links.
 - Repeated `--agent-root` options replace all default roots.
 - Any detected conflict prevents the plan from applying. If an I/O failure
   occurs during creation, earlier links can remain; JSON records partial results.
+
+## Validate content
+
+`inventory` is metadata-only. Use `check` before publishing or after a
+substantial edit:
+
+```bash
+python3 scripts/skills_manager.py check --all --format text
+python3 scripts/skills_manager.py check example-skill --strict
+python3 scripts/skills_manager.py check example-skill --publish
+```
+
+It checks frontmatter `name`/`description`, relative links, symlinks, file
+permissions, Python and shell syntax, high-confidence secret patterns, and
+optional `last_validated` staleness. Errors exit 1. Warnings are reported unless
+`--strict`. `--no-secrets` skips the secret scan; `--publish` treats
+host-specific paths and links outside the skill as errors; `--verbose` includes
+info findings in text output. A clean check is structural, not proof that the
+skill's workflow succeeds.
 
 ## Consolidate existing sources
 
@@ -96,7 +120,7 @@ python3 -m unittest discover -s tests -v
 
 Tests use temporary libraries and agent directories. They cover synchronization,
 idempotence, preservation of conflicts and broken links, partial failure, invalid
-names, inventory without file-content reads, consolidation preservation,
-conflict rejection and failure recovery.
+names, inventory without file-content reads, content validation and secret
+redaction, consolidation preservation, conflict rejection and failure recovery.
 
 Licensed under [MIT](LICENSE).

@@ -69,6 +69,25 @@ class SkillsManagerTests(unittest.TestCase):
                 else:
                     self.assertEqual(os.readlink(target), before)
 
+    def test_inventory_strict_exit_code_on_conflict(self):
+        conflict = self.base / "conflict"
+        (conflict / self.source.name).mkdir(parents=True)
+        (conflict / self.source.name / "local-edit").write_text("keep")
+        report = manager.inventory(self.library, [conflict])
+        self.assertFalse(report["ok"])
+        with contextlib.redirect_stdout(io.StringIO()):
+            strict = manager.main([
+                "inventory", "--library", str(self.library),
+                "--agent-root", str(conflict), "--strict",
+            ])
+        self.assertEqual(strict, 1)
+        with contextlib.redirect_stdout(io.StringIO()):
+            normal = manager.main([
+                "inventory", "--library", str(self.library),
+                "--agent-root", str(conflict),
+            ])
+        self.assertEqual(normal, 0)
+
     def test_inventory_reports_orphans_and_skips_hidden_without_content_reads(self):
         self.sync(apply=True)
         (self.root / "orphan").symlink_to(self.base / "missing")
@@ -230,6 +249,211 @@ class SkillsManagerTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertFalse(json.loads(output.getvalue())["ok"])
 
+
+class CheckTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.base = Path(self.temporary.name).resolve()
+        self.library = self.base / "library"
+        self.skill = self.library / "check-skill"
+        self.skill.mkdir(parents=True)
+        self.write("SKILL.md", "---\nname: check-skill\ndescription: A fixture skill for check tests\n---\n\n# Check\n")
+        self.write("references/guide.md", "# Guide\n")
+
+    def write(self, relative, text):
+        path = self.skill / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        return path
+
+    def run_check(self, **kwargs):
+        return manager.check(self.library, ["check-skill"], **kwargs)
+
+    def codes(self, report):
+        return [item["code"] for item in report["skills"][0]["issues"]]
+
+    def test_valid_skill_passes(self):
+        self.write("SKILL.md", "---\nname: check-skill\ndescription: A fixture skill for check tests\n---\n\n[guide](references/guide.md)\n")
+        report = self.run_check()
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["counts"]["errors"], 0)
+        self.assertEqual(report["counts"]["warnings"], 0)
+
+    def test_external_schemes_are_not_local_links(self):
+        self.write("references/guide.md", "[web](https://example.com)\n[file](file:///tmp/example)\n")
+        report = self.run_check()
+        self.assertTrue(report["ok"])
+        self.assertNotIn("link_broken", self.codes(report))
+
+    def test_broken_link_is_an_error(self):
+        self.write("SKILL.md", "---\nname: check-skill\ndescription: A fixture skill for check tests\n---\n\n[gone](references/gone.md)\n")
+        report = self.run_check()
+        self.assertFalse(report["ok"])
+        self.assertIn("link_broken", self.codes(report))
+
+    def test_name_mismatch_and_missing_frontmatter(self):
+        self.write("SKILL.md", "---\nname: other-skill\ndescription: A fixture skill for check tests\n---\n")
+        self.assertIn("name_mismatch", self.codes(self.run_check()))
+        self.write("SKILL.md", "# no frontmatter\n")
+        self.assertIn("frontmatter_missing", self.codes(self.run_check()))
+
+    def test_host_path_is_info_not_error(self):
+        self.write("references/guide.md", "See " + "/Users/" + "example/private/file.txt\n")
+        report = self.run_check()
+        self.assertTrue(report["ok"])
+        self.assertGreaterEqual(report["counts"]["info"], 1)
+        self.assertIn("path_absolute_host", self.codes(report))
+
+    def test_permissions_warning_and_strict(self):
+        guide = self.write("references/guide.md", "# Guide\n")
+        guide.chmod(0o600)
+        report = self.run_check()
+        self.assertTrue(report["ok"])
+        self.assertIn("permissions", self.codes(report))
+        strict = self.run_check(strict=True)
+        self.assertFalse(strict["ok"])
+
+    def test_python_and_shell_syntax_errors(self):
+        self.write("scripts/bad.py", "def broken(\n")
+        self.assertIn("script_syntax", self.codes(self.run_check()))
+        self.write("scripts/bad.py", "print('ok')\n")
+        self.write("scripts/bad.sh", "if then\n")
+        self.assertIn("script_syntax", self.codes(self.run_check()))
+
+    def test_secret_value_is_not_printed(self):
+        secret = "AKIA" + "A" * 16
+        self.write("references/leak.md", "key = \"%s\"\n" % secret)
+        report = self.run_check()
+        self.assertFalse(report["ok"])
+        self.assertIn("secret_pattern", self.codes(report))
+        self.assertNotIn(secret, json.dumps(report))
+
+    def test_no_secrets_skips_pattern_scan(self):
+        secret = "AKIA" + "A" * 16
+        self.write("references/leak.md", "key = \"%s\"\n" % secret)
+        report = self.run_check(secrets=False)
+        self.assertTrue(report["ok"])
+        self.assertNotIn("secret_pattern", self.codes(report))
+
+    def test_stale_metadata_is_opt_in(self):
+        self.write("SKILL.md", "---\nname: check-skill\ndescription: A fixture skill for check tests\nlast_validated: 2020-01-01\n---\n")
+        self.assertIn("stale_metadata", self.codes(self.run_check(stale_days=90)))
+        self.assertNotIn("stale_metadata", self.codes(self.run_check(stale_days=0)))
+
+    def test_alias_name_mismatch_is_warning(self):
+        target = self.library / "target-dir"
+        target.mkdir()
+        (target / "SKILL.md").write_text("---\nname: canonical-name\ndescription: A fixture skill for alias tests\n---\n")
+        alias = self.library / "short"
+        alias.symlink_to(target)
+        report = manager.check(self.library, ["short"], strict=False)
+        self.assertTrue(report["ok"])
+        self.assertIn("name_mismatch_alias", [i["code"] for i in report["skills"][0]["issues"]])
+
+    def test_cli_text_and_exit_code(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = manager.main(["check", "check-skill", "--library", str(self.library), "--format", "text"])
+        self.assertEqual(code, 0)
+        self.assertIn("OK", output.getvalue())
+        self.write("SKILL.md", "---\nname: check-skill\ndescription: A fixture skill for check tests\n---\n\n[gone](missing.md)\n")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(manager.main(["check", "check-skill", "--library", str(self.library)]), 1)
+
+    def test_sync_rejects_empty_skill_md(self):
+        self.write("SKILL.md", "")
+        with self.assertRaises(ValueError):
+            manager.sync(self.library, [self.base / "root"], ["check-skill"], apply=True)
+        self.assertFalse((self.base / "root").exists())
+
+    def test_shell_syntax_error_does_not_print_secret(self):
+        secret = "AKIA" + "B" * 16
+        self.write("scripts/bad.sh", "if then # %s\nfi\n" % secret)
+        report = self.run_check()
+        self.assertFalse(report["ok"])
+        self.assertIn("script_syntax", self.codes(report))
+        self.assertNotIn(secret, json.dumps(report))
+        self.assertNotIn(secret, manager.check_text(report, True))
+        self.assertNotIn(secret, json.dumps(self.run_check(secrets=False)))
+
+    def test_symlink_outside_skill_is_an_error(self):
+        outside = self.base / "outside.txt"
+        outside.write_text("outside fixture\n")
+        (self.skill / "references" / "outside").symlink_to(outside)
+        report = self.run_check()
+        self.assertFalse(report["ok"])
+        self.assertIn("symlink_outside", self.codes(report))
+
+    def test_symlink_to_sensitive_path_is_an_error(self):
+        secrets = self.skill / "secrets"
+        secrets.mkdir()
+        (self.skill / "references" / "secret-link").symlink_to(secrets)
+        report = self.run_check()
+        self.assertFalse(report["ok"])
+        self.assertIn("symlink_sensitive", self.codes(report))
+
+    def test_internal_symlink_is_informational(self):
+        guide = self.skill / "references" / "guide.md"
+        (self.skill / "references" / "guide-link.md").symlink_to(guide)
+        report = self.run_check()
+        self.assertTrue(report["ok"])
+        self.assertIn("symlink_internal", self.codes(report))
+
+    def test_broken_internal_symlink_is_an_error(self):
+        (self.skill / "references" / "broken-link.md").symlink_to(
+            self.skill / "references" / "missing.md"
+        )
+        report = self.run_check()
+        self.assertFalse(report["ok"])
+        self.assertIn("symlink_outside", self.codes(report))
+
+    def test_publish_rejects_outside_link_and_host_path(self):
+        outside = self.library / "outside.md"
+        outside.write_text("# Outside\n")
+        self.write("references/guide.md", "[outside](../../outside.md)\nSee " + "/Users/" + "example/private/file.txt\n")
+        local = self.run_check()
+        self.assertTrue(local["ok"])
+        published = self.run_check(publish=True)
+        self.assertFalse(published["ok"])
+        self.assertIn("link_outside_skill", self.codes(published))
+        self.assertIn("path_absolute_host", self.codes(published))
+
+    def test_inline_yaml_comments_are_ignored(self):
+        self.write("SKILL.md", "---\nname: check-skill # canonical name\ndescription: A fixture skill for check tests # keep\n---\n")
+        self.assertTrue(self.run_check()["ok"])
+
+    def test_inventory_broken_library_entry_is_not_ok(self):
+        (self.library / "broken-skill").symlink_to(self.base / "missing-skill")
+        report = manager.inventory(self.library, [self.base / "root"])
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["counts"]["broken"], 1)
+
+    def test_inventory_broken_library_entry_exit_code(self):
+        (self.library / "broken-skill").symlink_to(self.base / "missing-skill")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = manager.main([
+                "inventory", "--library", str(self.library), "--agent-root",
+                str(self.base / "root"), "--strict",
+            ])
+        self.assertEqual(code, 1)
+
+    def test_cli_publish_flag_rejects_host_path(self):
+        self.write("references/guide.md", "See " + "/Users/" + "example/private/file.txt\n")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = manager.main([
+                "check", "check-skill", "--library", str(self.library),
+                "--publish", "--format", "text",
+            ])
+        self.assertEqual(code, 1)
+
+    def test_sync_all_reports_alias_scope(self):
+        self.write("SKILL.md", "---\nname: check-skill\ndescription: A fixture skill for check tests\n---\n")
+        alias = self.library / "short-alias"
+        alias.symlink_to(self.skill)
+        report = manager.sync(self.library, [self.base / "root"], [], all_skills=True)
+        self.assertTrue(report["ok"])
+        self.assertTrue(any("alias" in warning for warning in report["warnings"]))
 
 if __name__ == "__main__":
     unittest.main()
